@@ -4,37 +4,10 @@ import logging
 import betterlogging as bl
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.fsm.storage.redis import RedisStorage, DefaultKeyBuilder
 
-from tgbot.config import load_config, Config
+from tgbot.config import load_config
 from tgbot.handlers import routers_list
 from tgbot.middlewares.config import ConfigMiddleware
-from tgbot.services import broadcaster
-
-
-async def on_startup(bot: Bot, admin_ids: list[int]):
-    await broadcaster.broadcast(bot, admin_ids, "Бот був запущений")
-
-
-def register_global_middlewares(dp: Dispatcher, config: Config, session_pool=None):
-    """
-    Register global middlewares for the given dispatcher.
-    Global middlewares here are the ones that are applied to all the handlers (you specify the type of update)
-
-    :param dp: The dispatcher instance.
-    :type dp: Dispatcher
-    :param config: The configuration object from the loaded configuration.
-    :param session_pool: Optional session pool object for the database using SQLAlchemy.
-    :return: None
-    """
-    middleware_types = [
-        ConfigMiddleware(config),
-        # DatabaseMiddleware(session_pool),
-    ]
-
-    for middleware_type in middleware_types:
-        dp.message.outer_middleware(middleware_type)
-        dp.callback_query.outer_middleware(middleware_type)
 
 
 def setup_logging():
@@ -63,40 +36,19 @@ def setup_logging():
     logger.info("Starting bot")
 
 
-def get_storage(config):
-    """
-    Return storage based on the provided configuration.
-
-    Args:
-        config (Config): The configuration object.
-
-    Returns:
-        Storage: The storage object based on the configuration.
-
-    """
-    if config.tg_bot.use_redis:
-        return RedisStorage.from_url(
-            config.redis.dsn(),
-            key_builder=DefaultKeyBuilder(with_bot_id=True, with_destiny=True),
-        )
-    else:
-        return MemoryStorage()
-
-
 async def main():
     setup_logging()
 
     config = load_config(".env")
-    storage = get_storage(config)
 
     bot = Bot(token=config.tg_bot.token, parse_mode="HTML")
-    dp = Dispatcher(storage=storage)
+    dp = Dispatcher(storage=MemoryStorage())
 
     dp.include_routers(*routers_list)
 
-    register_global_middlewares(dp, config)
+    dp.message.outer_middleware(ConfigMiddleware(config))
+    dp.callback_query.outer_middleware(ConfigMiddleware(config))
 
-    await on_startup(bot, config.tg_bot.admin_ids)
     await dp.start_polling(bot)
 
 
