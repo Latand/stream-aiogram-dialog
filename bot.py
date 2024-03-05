@@ -4,8 +4,14 @@ import logging
 import betterlogging as bl
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram_dialog import setup_dialogs
 
 from tgbot.config import load_config
+from tgbot.dialogs import (
+    booking_info_dialog,
+    main_menu_dialog,
+    restaurant_selection_dialog,
+)
 from tgbot.handlers import routers_list
 from tgbot.middlewares.config import ConfigMiddleware
 
@@ -45,9 +51,14 @@ async def main():
     dp = Dispatcher(storage=MemoryStorage())
 
     dp.include_routers(*routers_list)
+    dp.include_routers(
+        main_menu_dialog, restaurant_selection_dialog, booking_info_dialog
+    )
 
     dp.message.outer_middleware(ConfigMiddleware(config))
     dp.callback_query.outer_middleware(ConfigMiddleware(config))
+
+    setup_dialogs(dp)
 
     await dp.start_polling(bot)
 
